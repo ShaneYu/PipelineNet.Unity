@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Description>A Unity IoC implementation of the IMiddlewareResolver for PipelineNet.</Description>
+    <Copyright>Copyright 2018</Copyright>
+    <PackageLicenseUrl>https://github.com/ShaneYu/PipelineNet.Unity/blob/master/LICENSE</PackageLicenseUrl>
+    <PackageProjectUrl>https://github.com/ShaneYu/PipelineNet.Unity</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/ShaneYu/PipelineNet.Unity.git</RepositoryUrl>
+    <RepositoryType>Git</RepositoryType>
+    <PackageTags>Pipeline .NetCore Portable Chain Responsibility ChainOfResponsibility Core NetStandard Unity IoC ServiceLocator DependencyInjector</PackageTags>
+    <Authors>Shane Yu</Authors>
+    <Company />
+    <PackageReleaseNotes>Initial version</PackageReleaseNotes>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="PipelineNet" Version="0.0.1" />
+    <PackageReference Include="Unity.Abstractions" Version="3.3.0" />
+  </ItemGroup>
+
+</Project>
