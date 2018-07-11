@@ -1,72 +1,82 @@
-#tool "nuget:?package=xunit.runner.console&version=2.2.0"
-//////////////////////////////////////////////////////////////////////
-// ARGUMENTS
-//////////////////////////////////////////////////////////////////////
+#tool "nuget:?package=GitReleaseNotes"
+#tool "nuget:?package=GitVersion.CommandLine"
 
 var target = Argument("target", "Default");
-var configuration = Argument("configuration", "Release");
-
-//////////////////////////////////////////////////////////////////////
-// PREPARATION
-//////////////////////////////////////////////////////////////////////
-
-// Define directories.
-var buildDir = Directory("./src/PipelineNet.Unity/bin") + Directory(configuration);
-
-//////////////////////////////////////////////////////////////////////
-// TASKS
-//////////////////////////////////////////////////////////////////////
+var mainProj = "./src/PipelineNet.Unity/PipelineNet.Unity.csproj";
+var outputDir = "./artifacts/";
 
 Task("Clean")
-    .Does(() =>
-{
-    CleanDirectory(buildDir);
-});
+    .Does(() => {
+        if (DirectoryExists(outputDir))
+        {
+            DeleteDirectory(outputDir, recursive:true);
+        }
+    });
 
-Task("Restore-NuGet-Packages")
-    .IsDependentOn("Clean")
-    .Does(() =>
-{
-    NuGetRestore("./src/PipelineNet.Unity.sln");
-});
+Task("Restore")
+    .Does(() => {
+        DotNetCoreRestore("src");
+    });
+
+GitVersion versionInfo = null;
+Task("Version")
+    .Does(() => {
+        GitVersion(new GitVersionSettings{
+            UpdateAssemblyInfo = true,
+            OutputType = GitVersionOutput.BuildServer
+        });
+        versionInfo = GitVersion(new GitVersionSettings{ OutputType = GitVersionOutput.Json });        
+    });
 
 Task("Build")
-    .IsDependentOn("Restore-NuGet-Packages")
-    .Does(() =>
-{
-    if(IsRunningOnWindows())
-    {
-      // Use MSBuild
-      MSBuild("./src/PipelineNet.Unity.sln", settings =>
-        settings.SetConfiguration(configuration));
-    }
-    else
-    {
-      // Use XBuild
-      XBuild("./src/PipelineNet.Unity.sln", settings =>
-        settings.SetConfiguration(configuration));
-    }
-});
-
-Task("Run-Unit-Tests")
-    .IsDependentOn("Build")
-    .Does(() =>
-{
-    XUnit("./src/**/bin/" + configuration + "/*.Tests.dll", new XUnitSettings {
-        HtmlReport = true,
-        OutputDirectory = "./build"
+    .IsDependentOn("Clean")
+    .IsDependentOn("Version")
+    .IsDependentOn("Restore")
+    .Does(() => {
+        DotNetCoreBuild("./src/PipelineNet.Unity.sln");
     });
-});
 
-//////////////////////////////////////////////////////////////////////
-// TASK TARGETS
-//////////////////////////////////////////////////////////////////////
+Task("Test")
+    .IsDependentOn("Build")
+    .Does(() => {
+        DotNetCoreTest("./src/PipelineNet.Unity.Tests");
+    });
+
+Task("Package")
+    .IsDependentOn("Test")
+    .Does(() => {
+        var settings = new DotNetCorePackSettings
+        {
+            ArgumentCustomization = args=> args.Append(" --include-symbols /p:PackageVersion=" + versionInfo.NuGetVersion),
+            OutputDirectory = outputDir,
+            NoBuild = true
+        };
+
+        DotNetCorePack(mainProj, settings);
+
+        var releaseNotesExitCode = StartProcess(
+            @"tools\GitReleaseNotes\tools\gitreleasenotes.exe", 
+            new ProcessSettings { Arguments = ". /o artifacts/releasenotes.md" });
+
+        if (string.IsNullOrEmpty(System.IO.File.ReadAllText("./artifacts/releasenotes.md")))
+            System.IO.File.WriteAllText("./artifacts/releasenotes.md", "No issues closed since last release");
+
+        if (releaseNotesExitCode != 0) throw new Exception("Failed to generate release notes");
+
+        System.IO.File.WriteAllLines(outputDir + "artifacts", new[]{
+            "nuget:PipelineNet.Unity." + versionInfo.NuGetVersion + ".nupkg",
+            "nugetSymbols:PipelineNet.Unity." + versionInfo.NuGetVersion + ".symbols.nupkg",
+            "releaseNotes:releasenotes.md"
+        });
+
+        if (AppVeyor.IsRunningOnAppVeyor)
+        {
+            foreach (var file in GetFiles(outputDir + "**/*"))
+                AppVeyor.UploadArtifact(file.FullPath);
+        }
+    });
 
 Task("Default")
-    .IsDependentOn("Run-Unit-Tests");
-
-//////////////////////////////////////////////////////////////////////
-// EXECUTION
-//////////////////////////////////////////////////////////////////////
+    .IsDependentOn("Package");
 
 RunTarget(target);

@@ -1,7 +1,17 @@
-version: 1.0.{build}
-image: Visual Studio 2017
-init:
-- cmd: PowerShell -Version 2.0 .\set-version.ps1
+assembly_info:
+  patch: false
+
+platform:
+  - Any CPU
+
+configuration:
+  - Release
+
 build_script:
-- cmd: PowerShell -Version 2.0 .\build.ps1
+  - powershell .\build.ps1
+
 test: off
+skip_tags: true
+
+cache:
+  - src\packages -> **\packages.config
